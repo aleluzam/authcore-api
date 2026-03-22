@@ -1,3 +1,2 @@
-.env.example
 .venv
-
+.env
