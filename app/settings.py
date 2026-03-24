@@ -1,18 +1,17 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import ConfigDict
 
 class Settings(BaseSettings):
-    postgres_host: str
-    postgres_port: str
+    db_host: str
+    db_port: str
     postgres_user: str
     postgres_password: str
-    postgres_name: str
-    postgres_url: str
+    postgres_db: str
     
+    port: int
     secret_key: str
-    
-    redis_url: str    
-    
+    database_url: str
+    redis_url: str
+
     model_config = SettingsConfigDict(env_file=".env")
 
 settings = Settings()

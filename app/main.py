@@ -1,9 +1,32 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends, HTTPException, status
+from sqlalchemy import text
+import logging
 
+from app.database import Session, get_db
+from app.api.v1.auth import auth_router
+
+logger = logging.getLogger(__name__)
 
 app = FastAPI()
+app.include_router(auth_router)
 
 
 @app.get("/")
 def route():
     return "Hello"
+
+@app.get("/health")
+def health(db: Session = Depends(get_db)):
+    try:
+        query = db.execute(text("SELECT 1"))
+        return {
+            "health": "healthy",
+            "db": "conected"
+        }
+        
+    except Exception as e:
+        logger.error(f"Error trying to connect database, error: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database unavailable"
+        )
