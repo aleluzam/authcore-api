@@ -1,0 +1,3 @@
+2026-03-25 12:26:09,362 - app.core.mail - ERROR - Error sending email: The luzardo.com domain is not verified. Please, add and verify your domain on https://resend.com/domains
+2026-03-25 12:32:20,275 - app.core.mail - ERROR - Error sending email: The luzardo.com domain is not verified. Please, add and verify your domain on https://resend.com/domains
+2026-03-25 12:33:06,486 - app.core.mail - ERROR - Error sending email: The luzardo.com domain is not verified. Please, add and verify your domain on https://resend.com/domains

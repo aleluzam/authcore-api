@@ -2,23 +2,25 @@ from fastapi import FastAPI, Depends, HTTPException, status
 from sqlalchemy import text
 import logging
 
-from app.database import Session, get_db
+from app.database import AsyncSession, get_db
 from app.api.v1.auth import auth_router
+from app.logger import setup_logger
 
-logger = logging.getLogger(__name__)
+setup_logger()
+logger = logging.getLogger("app")
 
 app = FastAPI()
 app.include_router(auth_router)
 
 
 @app.get("/")
-def route():
+async def route():
     return "Hello"
 
 @app.get("/health")
-def health(db: Session = Depends(get_db)):
+async def health(db: AsyncSession = Depends(get_db)):
     try:
-        query = db.execute(text("SELECT 1"))
+        query = await db.execute(text("SELECT 1"))
         return {
             "health": "healthy",
             "db": "conected"
