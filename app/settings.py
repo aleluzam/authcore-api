@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     port: int
     
     secret_key: str
+    algorithm: str
     
     database_url: str
     async_database_url: str

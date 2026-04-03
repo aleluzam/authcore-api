@@ -1,25 +1,24 @@
-from fastapi import Depends, HTTPException, status
+from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
-from datetime import datetime, timezone, timedelta
+from sqlalchemy.ext.asyncio import AsyncSession
 from redis.exceptions import ConnectionError, TimeoutError
 from uuid import UUID
 import logging
 import secrets
 
-from app.database import get_db, AsyncSession
 from app.core.redis import redis_client
 from app.settings import settings
 from app.schemas.users_schemas import UserValidate
 from app.schemas.mail_schemas import EmailRequest
 from app.models.users import UserTable
-from app.core.security import hash_password
+from app.core.security import hash_password, generate_payload, encode_jwt, verify_password
 from app.core.mail import send_mail
 
 logger = logging.getLogger(__name__)
 
-
-async def register_new_user(user_data: UserValidate, db: AsyncSession = Depends(get_db)):
+# register
+async def register_new_user(user_data: UserValidate, db: AsyncSession):
     try:
         result = await db.execute(select(UserTable).where(UserTable.mail == user_data.mail))
         check_mail = result.scalar_one_or_none()
@@ -37,8 +36,8 @@ async def register_new_user(user_data: UserValidate, db: AsyncSession = Depends(
         await db.flush()
         await db.refresh(db_user)
         
+        # for redis
         token = secrets.token_urlsafe(32)
-        
         await redis_client.setex(f"verify-mail:{token}", 3600, str(db_user.id))
         
         link = f"{settings.base_url}/v1/auth/verify-mail?token={token}"
@@ -50,8 +49,6 @@ async def register_new_user(user_data: UserValidate, db: AsyncSession = Depends(
         send_mail(email_object)
         
         await db.commit()        
-                
-
         return {"message": "If this mail is not registered, you will receive a verification link"}
     
     except SQLAlchemyError as e:
@@ -78,6 +75,7 @@ async def register_new_user(user_data: UserValidate, db: AsyncSession = Depends(
             detail="Internal Server Error"
         )
 
+# mail_verification
 async def verify_mail(token: str, db: AsyncSession):
     try:
         storaged_data = await redis_client.get(f"verify-mail:{token}")
@@ -143,5 +141,52 @@ async def verify_mail(token: str, db: AsyncSession):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal Server Error"
-        )         
-            
+        )
+
+# login
+async def users_login(user_data: UserValidate, db: AsyncSession) -> dict:
+    try:
+        data_is_correct = await validate_user_data(user_data, db)
+        if not data_is_correct:
+            raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect username or password",
+            headers={"WWW-Authenticate": "Bearer"}
+        )
+        
+        payload = generate_payload(data_is_correct)
+        
+        token = encode_jwt(payload)
+        
+        return {
+            "access_token": token,
+            "token_type": "Bearer"
+        }
+        
+    except HTTPException:
+        raise
+    
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Could not create access token",
+            headers={"WWW-Authenticate": "Bearer"}
+        )
+
+async def validate_user_data(user_data: UserValidate, db: AsyncSession) -> UUID | None:
+    result = await db.execute(select(UserTable).filter(UserTable.mail == user_data.mail))
+    user_in_db = result.scalar_one_or_none()
+    
+    if not user_in_db:
+        logger.warning("Failed login attempt")
+        return None
+    
+    if not user_in_db.is_verified:
+        logger.info("Login attempt for unverified account")
+        raise ValueError("Account not verified")
+    
+    if not verify_password(user_data.password, user_in_db.hashed_password):
+        logger.warning("Failed login attempt")
+        return None
+    
+    return user_in_db.id

@@ -1,15 +1,32 @@
 from fastapi import FastAPI, Depends, HTTPException, status
+from contextlib import asynccontextmanager
 from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
 import logging
 
-from app.database import AsyncSession, get_db
-from app.api.v1.auth import auth_router
+from app.dependencies import get_db, AsyncSessionLocal
+from app.settings import settings
+from app.api.v1.auth_endpoints import auth_router
 from app.logger import setup_logger
 
 setup_logger()
 logger = logging.getLogger("app")
 
-app = FastAPI()
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    if not settings.secret_key:
+        raise RuntimeError("SECRET_KEY not configured, App cant run")
+    try:
+        async with AsyncSessionLocal() as db:
+            await db.execute(text("SELECT 1"))
+            logger.info("Database connection successful")
+    except Exception as e:
+        logger.error(f"Database connection failed: {str(e)}")
+        raise RuntimeError(f"Database unavailable: {str(e)}")
+    
+    yield
+
+app = FastAPI(lifespan)
 app.include_router(auth_router)
 
 
