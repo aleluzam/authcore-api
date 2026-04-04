@@ -6,6 +6,7 @@ from jose import jwt
 from jose.exceptions import ExpiredSignatureError
 from datetime import datetime, timedelta, timezone
 import uuid
+import secrets
 
 from app.settings import settings
 
@@ -56,4 +57,4 @@ def generate_payload(user_id: uuid.UUID) -> dict:
         "exp": now + timedelta(minutes=15),
         "jti": str(uuid.uuid4())
     }
-    return payload
+    return payload        

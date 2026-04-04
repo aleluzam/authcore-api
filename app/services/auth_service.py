@@ -149,29 +149,43 @@ async def users_login(user_data: UserValidate, db: AsyncSession) -> dict:
         data_is_correct = await validate_user_data(user_data, db)
         if not data_is_correct:
             raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect username or password",
-            headers={"WWW-Authenticate": "Bearer"}
-        )
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Incorrect username or password",
+                headers={"WWW-Authenticate": "Bearer"}
+            )
         
         payload = generate_payload(data_is_correct)
+        access_token = encode_jwt(payload)
         
-        token = encode_jwt(payload)
+        refresh_token = secrets.token_urlsafe(32)
+        
+        await redis_client.setex(f"refresh_token:{str(refresh_token)}", 604800, str(data_is_correct))
         
         return {
-            "access_token": token,
+            "access_token": access_token,
+            "refresh_token": refresh_token,
             "token_type": "Bearer"
         }
         
-    except HTTPException:
+    except HTTPException as e:
+        logger.error(f"Login error: {str(e)}")
         raise
     
-    except Exception:
+    except (ConnectionError, TimeoutError) as e:
+        logger.error(f"Redis unavailable: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Service temporarily unavailable"
+        )
+    
+    except Exception as e:
+        logger.error(f"Login error: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Could not create access token",
             headers={"WWW-Authenticate": "Bearer"}
         )
+
 
 async def validate_user_data(user_data: UserValidate, db: AsyncSession) -> UUID | None:
     result = await db.execute(select(UserTable).filter(UserTable.mail == user_data.mail))
@@ -183,10 +197,98 @@ async def validate_user_data(user_data: UserValidate, db: AsyncSession) -> UUID 
     
     if not user_in_db.is_verified:
         logger.info("Login attempt for unverified account")
-        raise ValueError("Account not verified")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Email not verified"
+        )
     
     if not verify_password(user_data.password, user_in_db.hashed_password):
         logger.warning("Failed login attempt")
         return None
     
     return user_in_db.id
+
+
+async def generate_access_token(refresh_token: str) -> dict:
+    try:
+        
+        user_id = await redis_client.get(f"refresh_token:{refresh_token}")
+        if not user_id:
+            
+            in_blacklist = await redis_client.get(f"blacklist:{refresh_token}")
+            if in_blacklist:
+                await redis_client.delete(f"refresh_token:{refresh_token}")
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED, 
+                    detail="Token reuse detected"
+                    )
+
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid or expired refresh token"
+            )
+
+        new_access_token = encode_jwt(generate_payload(UUID(user_id)))
+        new_refresh_token = secrets.token_urlsafe(32)
+        
+        await redis_client.setex(f"blacklist:{refresh_token}", 604800, user_id)
+        await redis_client.delete(f"refresh_token:{refresh_token}")
+        
+        await redis_client.setex(f"refresh_token:{new_refresh_token}", 604800, user_id)
+        
+        return {
+            "access_token": new_access_token,
+            "refresh_token": new_refresh_token,
+            "token_type": "Bearer"
+                }
+    
+    except HTTPException as e:
+        logger.error(f"Error: {str(e)}")
+        raise
+    
+    except (ConnectionError, TimeoutError) as e:
+        logger.error(f"Redis unavailable: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Service temporarily unavailable"
+        )
+
+    except Exception as e:
+        logger.error(f"Error: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Could not create access token",
+            headers={"WWW-Authenticate": "Bearer"}
+        )
+        
+
+async def logout(refresh_token: str):
+    try:
+        token_in_redis = await redis_client.get(f"refresh_token:{refresh_token}")
+        if not token_in_redis:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Refresh token dont exist")
+        
+        await redis_client.delete(f"refresh_token:{refresh_token}")
+        
+        return {
+            "message": "Logout successfully"
+        }
+    
+    except HTTPException:
+        raise
+    
+    except (ConnectionError, TimeoutError) as e:
+        logger.error(f"Redis unavailable: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Service temporarily unavailable"
+        )
+        
+    except Exception as e:
+        logger.error(f"Logout error: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal Server Error"
+        )
