@@ -21,6 +21,10 @@ class Settings(BaseSettings):
     resend_api_key: str
     admin_mail: str
     
+    google_client_id: str
+    google_client_secret: str
+    google_redirect_uri: str
+    
 
     model_config = SettingsConfigDict(env_file=".env")
 
