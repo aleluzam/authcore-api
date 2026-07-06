@@ -2,6 +2,7 @@ from fastapi import Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from jose.exceptions import JWTError
+from uuid import UUID
 import logging
 
 from app.database import AsyncSessionLocal
@@ -18,34 +19,25 @@ async def get_db():
 
 # main security function
 async def validate_user(db: AsyncSession, token: str = Depends(oauth2_scheme)) -> UserTable:
-    
+
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Credencials cant be validated",
         headers={"WWW-Authenticate": "Bearer"}
     )
-    
+
     try:
         payload = decode_jwt(token)
-        user_id = payload.get("sub")
-        if not user_id:
+        user_id_raw = payload.get("sub")
+        if not user_id_raw:
             raise credentials_exception
-        
-    except JWTError:
+        user_id = UUID(user_id_raw)
+
+    except (JWTError, ValueError, AttributeError):
         raise credentials_exception
-    
     result = await db.execute(select(UserTable).filter(UserTable.id == user_id))
     user_existed = result.scalar_one_or_none()
-    
+
     if not user_existed:
         raise credentials_exception
     return user_existed
-
-
-        
-        
-    
-   
-        
-        
-    

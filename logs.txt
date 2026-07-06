@@ -1,0 +1,5 @@
+2026-04-03 14:36:35,968 - app - ERROR - Database connection failed: the greenlet library is required to use this function. No module named 'greenlet'
+2026-04-03 14:39:44,708 - app - ERROR - Database connection failed: [Errno 8] nodename nor servname provided, or not known
+2026-04-04 13:04:10,947 - app.services.auth_service - ERROR - Login error: Invalid input of type: 'UUID'. Convert to a bytes, string, int or float first.
+2026-04-04 13:42:58,680 - app.services.auth_service - ERROR - Error: 401: Token reuse detected
+2026-06-22 19:26:06,489 - app - ERROR - Database connection failed: connection was closed in the middle of operation

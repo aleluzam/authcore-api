@@ -1,14 +1,20 @@
-from sqlalchemy import Column, String, UUID, Boolean
+from sqlalchemy import Column, String, UUID, Boolean, Enum
 import uuid
+from enum import Enum as PyEnum
 
 from app.database import Base
 from app.models.mixins import TimestampMixin
 
+class Roles(str, PyEnum):
+    ADMIN = "admin"
+    USER = "user"
 
 class UserTable(Base, TimestampMixin):
     __tablename__="users"
-    
+
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     mail = Column(String(255), index=True, unique=True, nullable=False)
     hashed_password = Column(String(220), nullable=True)
     is_verified = Column(Boolean, default=False)
+    role = Column(Enum(Roles), default=Roles.USER, nullable=False)
+

@@ -27,9 +27,9 @@ async def verify(token: str, db: AsyncSession = Depends(get_db)):
 
 @auth_router.post("/login", tags=["auth"])
 async def login(data: UserValidate, db: AsyncSession = Depends(get_db)):
-    return await users_login(data, db)    
-        
-        
+    return await users_login(data, db)
+
+
 @auth_router.post("/refresh", tags=["auth"])
 async def refresh(refresh_token: str):
     return await generate_access_token(refresh_token)
@@ -45,7 +45,7 @@ async def google_login():
     google_auth_url = (
         "https://accounts.google.com/o/oauth2/v2/auth"
         f"?client_id={settings.google_client_id}"
-        f"&redirect_uri={settings.google_redirect_uri}"            
+        f"&redirect_uri={settings.google_redirect_uri}"
         "&response_type=code"
         "&scope=openid email profile"
         )
