@@ -8,6 +8,7 @@ from app.dependencies import get_db, AsyncSessionLocal
 from app.settings import settings
 from app.api.v1.auth_endpoints import auth_router
 from app.logger import setup_logger
+from app.seed import ensure_default_roles
 
 setup_logger()
 logger = logging.getLogger("app")
@@ -23,7 +24,7 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error(f"Database connection failed: {str(e)}")
         raise RuntimeError(f"Database unavailable: {str(e)}")
-    
+    await ensure_default_roles()
     yield
 
 app = FastAPI(lifespan=lifespan)
@@ -42,7 +43,7 @@ async def health(db: AsyncSession = Depends(get_db)):
             "health": "healthy",
             "db": "conected"
         }
-        
+
     except Exception as e:
         logger.error(f"Error trying to connect database, error: {str(e)}")
         raise HTTPException(

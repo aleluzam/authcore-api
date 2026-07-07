@@ -41,3 +41,19 @@ async def validate_user(db: AsyncSession, token: str = Depends(oauth2_scheme)) -
     if not user_existed:
         raise credentials_exception
     return user_existed
+
+
+# role decorator
+def require_role(allowed_role: str):
+    async def role_checker(token: str = Depends(oauth2_scheme)) -> dict:
+        payload = decode_jwt(token)
+        user_role = payload.get("role", "user")
+
+        if user_role != allowed_role:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You don't have permission to access this resource"
+            )
+
+        return payload
+    return role_checker

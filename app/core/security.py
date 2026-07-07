@@ -49,10 +49,11 @@ def decode_jwt(token: str):
         )
 
 # ok
-def generate_payload(user_id: uuid.UUID) -> dict:
+def generate_payload(user_id: uuid.UUID, role: str = "user") -> dict:
     now = datetime.now(timezone.utc)
     payload = {
         "sub": str(user_id),
+        "role": role,
         "iat": now,
         "exp": now + timedelta(minutes=15),
         "jti": str(uuid.uuid4())
